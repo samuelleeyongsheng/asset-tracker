@@ -1,6 +1,5 @@
 "use client";
 
-import { Button } from "@/components/ui/button"
 import Badge from "@/components/ui/badge"
 import { AuthTriggerButton } from "@/components/auth/auth-trigger-button";
 
@@ -23,7 +22,10 @@ export default function Hero() {
                 <Badge variant="crypto" size="md">Crypto</Badge>
                 {" "}&{" "}
                 <Badge variant="stock" size="md">Stocks</Badge>
-                {" "}together
+                {" "}together 
+                <br className="hidden sm:block" />
+                in one dashboard
+                
             </p>
 
             {/* CTAs */}

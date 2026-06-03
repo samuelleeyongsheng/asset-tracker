@@ -12,8 +12,6 @@ export function AuthModal() {
   return (
     <Modal open={isOpen} onClose={closeAuthModal}>
       <div>
-        <h2>{isLogin ? "Welcome back" : "Create your account"}</h2>
-        <p>{isLogin ? "Sign in to continue." : "Create an account to start tracking your portfolio."}</p>
         {isLogin ? <LoginForm /> : <SignupForm />}
       </div>
     </Modal>
