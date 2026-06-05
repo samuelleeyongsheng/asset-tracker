@@ -1,4 +1,12 @@
+"use client"
+
+import { useState } from "react"
+import { toast } from "sonner"
+import { z } from "zod"
+
 import { cn } from "@/lib/utils"
+import { signIn } from "@/lib/auth-client"
+import { loginSchema } from "@/lib/validations/auth"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -10,15 +18,84 @@ import {
 import {
   Field,
   FieldDescription,
+  FieldError,
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 
+type LoginFormProps = React.ComponentProps<"div"> & {
+  // The modal passes these in so the form can flip to signup or close on success.
+  onSwitchView?: () => void
+  onSuccess?: () => void
+}
+
+// Field name -> error message. We only ever store the fields this form has.
+type FieldErrors = Partial<Record<"email" | "password", string>>
+
 export function LoginForm({
   className,
+  onSwitchView,
+  onSuccess,
   ...props
-}: React.ComponentProps<"div">) {
+}: LoginFormProps) {
+  const [errors, setErrors] = useState<FieldErrors>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    // Stop the browser's default full-page form submit — we handle it in JS.
+    event.preventDefault()
+
+    // FormData reads the current values straight off the DOM inputs (by `name`),
+    // so we don't need a piece of state per field.
+    const formData = new FormData(event.currentTarget)
+    const values = {
+      email: String(formData.get("email") ?? ""),
+      password: String(formData.get("password") ?? ""),
+    }
+
+    // safeParse never throws — it returns success/error so we can branch cleanly.
+    const result = loginSchema.safeParse(values)
+    if (!result.success) {
+      // z.flattenError gives { fieldErrors: { email: [msg], password: [msg] } }.
+      const { fieldErrors } = z.flattenError(result.error)
+      setErrors({
+        email: fieldErrors.email?.[0],
+        password: fieldErrors.password?.[0],
+      })
+      return
+    }
+
+    // Validation passed — clear old errors and call better-auth.
+    setErrors({})
+    setIsSubmitting(true)
+
+    try {
+      // better-auth returns { data, error } for *auth* failures (wrong password).
+      // But a network/500 error THROWS — so we still need the try/catch below.
+      const { error } = await signIn.email({
+        email: result.data.email,
+        password: result.data.password,
+      })
+
+      if (error) {
+        toast.error(error.message ?? "Invalid email or password")
+        return
+      }
+
+      toast.success("Welcome back!")
+      onSuccess?.()
+    } catch (err) {
+      // Reaches here if the request itself failed (server 500, network down).
+      console.error(err)
+      toast.error("Something went wrong. Please try again.")
+    } finally {
+      // finally ALWAYS runs — success, handled error, or throw — so the button
+      // can never get stuck on "Logging in...".
+      setIsSubmitting(false)
+    }
+  }
+
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
@@ -29,18 +106,22 @@ export function LoginForm({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form>
+          {/* noValidate disables the browser's native bubbles so zod is the
+              only source of validation messages. */}
+          <form onSubmit={handleSubmit} noValidate>
             <FieldGroup>
-              <Field>
+              <Field data-invalid={!!errors.email}>
                 <FieldLabel htmlFor="email">Email</FieldLabel>
                 <Input
                   id="email"
+                  name="email"
                   type="email"
                   placeholder="m@example.com"
-                  required
+                  aria-invalid={!!errors.email}
                 />
+                {errors.email && <FieldError>{errors.email}</FieldError>}
               </Field>
-              <Field>
+              <Field data-invalid={!!errors.password}>
                 <div className="flex items-center">
                   <FieldLabel htmlFor="password">Password</FieldLabel>
                   <a
@@ -50,10 +131,18 @@ export function LoginForm({
                     Forgot your password?
                   </a>
                 </div>
-                <Input id="password" type="password" required />
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  aria-invalid={!!errors.password}
+                />
+                {errors.password && <FieldError>{errors.password}</FieldError>}
               </Field>
               <Field>
-                <Button type="submit">Login</Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Logging in..." : "Login"}
+                </Button>
                 <Button variant="outline" type="button">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
                     <path
@@ -64,7 +153,14 @@ export function LoginForm({
                   Login with Google
                 </Button>
                 <FieldDescription className="text-center">
-                  Don&apos;t have an account? <a href="#">Sign up</a>
+                  Don&apos;t have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={onSwitchView}
+                    className="underline underline-offset-4 hover:text-primary"
+                  >
+                    Sign up
+                  </button>
                 </FieldDescription>
               </Field>
             </FieldGroup>

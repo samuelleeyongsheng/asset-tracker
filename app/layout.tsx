@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "next-themes";
+import { Toaster } from "sonner";
 
 import { AuthModal } from "@/components/auth/auth-modal";
 import { AuthModalProvider } from "@/components/auth/auth-modal-provider";
@@ -38,6 +39,7 @@ export default function RootLayout({
             {children}
            <AuthModal />
           </AuthModalProvider>
+          <Toaster richColors position="top-center" />
         </ThemeProvider>
       </body>
     </html>
