@@ -36,6 +36,7 @@ export default function Navbar() {
                     // while checking session: a neutral placeholder (avoids flicker)
                     <div className="w-16 h-7 rounded-md bg-muted" />
                 ) : user ? (
+                    
                     <>
                         <div className="flex items-center gap-2 px-3 py-1 rounded-md border
                                         border-border bg-muted text-sm font-medium text-foreground">

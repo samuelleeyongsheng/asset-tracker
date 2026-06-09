@@ -22,7 +22,8 @@ export const holding = pgTable("holding", {
   symbol: text("symbol").notNull(),          // "AAPL" or "bitcoin"
   type: text("type").notNull(),              // "stock" or "crypto"
   quantity: numeric("quantity", { precision: 24, scale: 8 }).notNull(),   // how many units
-  buyPrice: numeric("buy_price", { precision: 24, scale: 8 }).notNull(),  // price paid per unit
+  lastPrice: numeric("last_price", { precision: 24, scale: 8 }), // price paid per unit
+  priceUpdatedAt: timestamp("price_updated_at"), 
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
