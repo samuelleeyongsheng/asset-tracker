@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 import { authClient } from "@/lib/auth-client";
 import { AuthTriggerButton } from "@/components/auth/auth-trigger-button";
+import Link from "next/link";
 
 
 export default function Navbar() {
@@ -24,9 +25,9 @@ export default function Navbar() {
             {/* Asset-Track App */}
             <div className="flex items-center">
                 <span className="font-bold text-[20px] tracking-tight text-foreground hover:opacity-70">
-                    <a href="/">
+                    <Link href="/">
                     📊Asset<span className="text-emerald-600 dark:text-emerald-400">Track</span>
-                    </a>
+                    </Link>
                 </span>
             </div> 
 
