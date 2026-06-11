@@ -1,0 +1,46 @@
+name: CI
+
+# WHEN to run: on PRs (any), and on direct pushes to main.
+# This combo avoids double-runs: a feature-branch push fires the PR check,
+# not a separate push run.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:                          # one job, arbitrarily named "build"
+    runs-on: ubuntu-latest        # the fresh VM GitHub gives us
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4 # clones your repo onto the runner
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.3             # <-- match your `pnpm -v` major
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.16.0        # matches your local Node 22
+          cache: pnpm             # cache the pnpm store between runs = faster
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
+        env:                      # placeholders so import-time code doesn't crash
+          DATABASE_URL: postgresql://user:password@localhost:5432/db
+          BETTER_AUTH_SECRET: ci-placeholder-secret-not-used
+          BETTER_AUTH_URL: http://localhost:3000
+          GOOGLE_CLIENT_ID: ci-placeholder
+          GOOGLE_CLIENT_SECRET: ci-placeholder
