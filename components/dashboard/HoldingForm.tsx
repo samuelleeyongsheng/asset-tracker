@@ -15,17 +15,18 @@ import {
 } from "@/components/ui/card";
 import {
   Field,
+  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { CATALOG_BY_TYPE, assetValue } from "@/lib/assets-catalog";
+import { ASSET_CATALOG } from "@/lib/assets-catalog";
 import { holdingSchema } from "@/lib/validations/holding";
 import { addHolding, updateHolding } from "@/server/holdings";
-import type { HoldingView } from "@/types";
+import type { AssetType, HoldingView } from "@/types";
 
-type FieldErrors = Partial<Record<"asset" | "quantity", string>>;
+type FieldErrors = Partial<Record<"type" | "symbol" | "quantity", string>>;
 
 // Native <select> styled to match the shadcn Input (which is @base-ui based).
 const selectClassName =
@@ -40,6 +41,8 @@ export function HoldingForm({
 }) {
   const router = useRouter();
   const isEdit = !!holding;
+  // `type` is controlled so it can drive the placeholder, hint and suggestions.
+  const [type, setType] = useState<AssetType>(holding?.type ?? "crypto");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -47,7 +50,8 @@ export function HoldingForm({
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const raw = {
-      asset: String(formData.get("asset") ?? ""),
+      type: String(formData.get("type") ?? ""),
+      symbol: String(formData.get("symbol") ?? ""),
       quantity: String(formData.get("quantity") ?? ""),
     };
 
@@ -56,7 +60,8 @@ export function HoldingForm({
     if (!result.success) {
       const { fieldErrors } = z.flattenError(result.error);
       setErrors({
-        asset: fieldErrors.asset?.[0],
+        type: fieldErrors.type?.[0],
+        symbol: fieldErrors.symbol?.[0],
         quantity: fieldErrors.quantity?.[0],
       });
       return;
@@ -65,6 +70,8 @@ export function HoldingForm({
     setErrors({});
     setIsSubmitting(true);
     try {
+      // The server resolves the typed symbol + fetches its price; if it can't be
+      // priced it comes back with a field error we surface below.
       const res = isEdit
         ? await updateHolding(holding!.id, raw)
         : await addHolding(raw);
@@ -86,9 +93,8 @@ export function HoldingForm({
     }
   }
 
-  const defaultAsset = holding
-    ? assetValue({ type: holding.type, symbol: holding.symbol })
-    : "";
+  // Autocomplete hints for the chosen type — still fully free-text.
+  const suggestions = ASSET_CATALOG.filter((a) => a.type === type);
 
   return (
     <Card>
@@ -97,44 +103,68 @@ export function HoldingForm({
         <CardDescription>
           {isEdit
             ? "Update your position. The latest price is fetched when you save."
-            : "Pick an asset and enter how much you hold — we fetch its price on save."}
+            : "Type any ticker or coin — we fetch its price on save."}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} noValidate>
           <FieldGroup>
-            <Field data-invalid={!!errors.asset}>
-              <FieldLabel htmlFor="asset">Asset</FieldLabel>
+            <Field data-invalid={!!errors.type}>
+              <FieldLabel htmlFor="type">Type</FieldLabel>
               <select
-                id="asset"
-                name="asset"
-                defaultValue={defaultAsset}
-                aria-invalid={!!errors.asset}
+                id="type"
+                name="type"
+                value={type}
+                onChange={(e) => setType(e.target.value as AssetType)}
+                aria-invalid={!!errors.type}
                 className={selectClassName}
               >
-                <option value="" disabled>
-                  Select an asset…
-                </option>
-                <optgroup label="Crypto">
-                  {CATALOG_BY_TYPE.crypto.map((a) => (
-                    <option key={assetValue(a)} value={assetValue(a)}>
-                      {a.display} — {a.name}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="Stocks">
-                  {CATALOG_BY_TYPE.stock.map((a) => (
-                    <option key={assetValue(a)} value={assetValue(a)}>
-                      {a.display} — {a.name}
-                    </option>
-                  ))}
-                </optgroup>
+                <option value="crypto" className="bg-popover text-popover-foreground">Crypto</option>
+                <option value="stock" className="bg-popover text-popover-foreground">Stock</option>
+                <option value="cash" className="bg-popover text-popover-foreground">Cash</option>
+
               </select>
-              {errors.asset && <FieldError>{errors.asset}</FieldError>}
+              {errors.type && <FieldError>{errors.type}</FieldError>}
+            </Field>
+
+            <Field data-invalid={!!errors.symbol}>
+              <FieldLabel htmlFor="symbol">Symbol</FieldLabel>
+              <Input
+                id="symbol"
+                name="symbol"
+                list="symbol-suggestions"
+                autoComplete="off"
+                placeholder={
+                  type === "crypto" ? "e.g. BTC"
+                  : type === "stock" ? "e.g. TSLA "
+                  : type === "cash" ? "e.g. USD"
+                  : "Bonds"
+                }
+                defaultValue={holding?.symbol ?? ""}
+                aria-invalid={!!errors.symbol}
+              />
+              <datalist id="symbol-suggestions">
+                {suggestions.map((a) => (
+                  <option
+                    key={a.symbol}
+                    value={a.type === "crypto" ? a.symbol : a.display}
+                  >
+                    {a.display} — {a.name}
+                  </option>
+                ))}
+              </datalist>
+              <FieldDescription>
+                {type === "crypto"
+                  ? "Coin name, ticker, or CoinGecko id — e.g. bitcoin, ETH, solana."
+                  : type === "cash"
+                    ? "Currency code — only USD is supported right now."
+                    : "Stock ticker — e.g. AAPL, NVDA, TSLA."}
+              </FieldDescription>
+              {errors.symbol && <FieldError>{errors.symbol}</FieldError>}
             </Field>
 
             <Field data-invalid={!!errors.quantity}>
-              <FieldLabel htmlFor="quantity">Quantity</FieldLabel>
+              <FieldLabel htmlFor="quantity">Quantity / Amount in Cash</FieldLabel>
               <Input
                 id="quantity"
                 name="quantity"

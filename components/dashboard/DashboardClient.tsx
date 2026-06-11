@@ -94,7 +94,7 @@ export default function DashboardClient({
       </div>
 
       {/* Summary cards — computed from stored prices, no API call on load */}
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+      <div className="mt-6 grid gap-4 grid-cols-2 sm:grid-cols-4">
         <Card>
           <CardHeader>
             <CardDescription>Total value</CardDescription>
@@ -111,6 +111,12 @@ export default function DashboardClient({
           <CardHeader>
             <CardDescription>Stocks</CardDescription>
             <CardTitle className="text-2xl tabular-nums">{usd(totals.stock)}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardDescription>Cash</CardDescription>
+            <CardTitle className="text-2xl tabular-nums">{usd(totals.cash)}</CardTitle>
           </CardHeader>
         </Card>
       </div>

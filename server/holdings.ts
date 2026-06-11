@@ -9,8 +9,9 @@ import { auth } from "@/lib/auth";
 import { db } from "@/db/drizzle";
 import { holding } from "@/db/schema";
 import { holdingSchema, type RawHoldingInput } from "@/lib/validations/holding";
-import { getPrice, getPrices } from "@/lib/prices";
-import type { ActionResult, RefreshResult } from "@/types";
+import { getPrice, getPrices, resolveCryptoId } from "@/lib/prices";
+import { isSupportedAsset } from "@/lib/assets-catalog";
+import type { ActionResult, AssetType, RefreshResult } from "@/types";
 
 /** Resolve the signed-in user's id, or throw. */
 async function requireUserId(): Promise<string> {
@@ -26,6 +27,43 @@ function firstErrors(
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(fieldErrors)) if (v?.[0]) out[k] = v[0];
   return out;
+}
+
+/**
+ * Turn the user's free-typed symbol into the exact value our price layer needs,
+ * or return a user-facing error. Per type:
+ *   crypto -> CoinGecko coin id, resolved via search (rejects unknown coins)
+ *   stock  -> uppercased ticker (Yahoo validates it later by pricing it)
+ *   cash   -> uppercased currency code; since cash has no pricing API to vouch
+ *             for it, the catalog is the gatekeeper for what's allowed.
+ */
+async function resolveSymbol(
+  type: AssetType,
+  input: string,
+): Promise<{ ok: true; symbol: string } | (ActionResult & { ok: false })> {
+  if (type === "crypto") {
+    const id = await resolveCryptoId(input);
+    if (!id) {
+      return {
+        ok: false,
+        error: `Couldn't find a crypto matching "${input}". Try its name or ticker, e.g. bitcoin or eth.`,
+        fieldErrors: { symbol: "Unknown crypto" },
+      };
+    }
+    return { ok: true, symbol: id };
+  }
+
+  const symbol = input.toUpperCase();
+
+  if (type === "cash" && !isSupportedAsset(symbol, "cash")) {
+    return {
+      ok: false,
+      error: `"${input}" isn't a supported currency. Only USD is supported right now.`,
+      fieldErrors: { symbol: "Unsupported currency" },
+    };
+  }
+
+  return { ok: true, symbol };
 }
 
 export async function addHolding(raw: RawHoldingInput): Promise<ActionResult> {
@@ -45,18 +83,30 @@ export async function addHolding(raw: RawHoldingInput): Promise<ActionResult> {
       fieldErrors: firstErrors(fieldErrors),
     };
   }
-  const { asset, quantity } = parsed.data;
+  const { type, symbol: input, quantity } = parsed.data;
 
-  // Fetch the live price at the moment the asset is saved (the "POST" fetch).
-  const price = await getPrice(asset.symbol, asset.type);
+  // Resolve + validate the free-typed symbol (see resolveSymbol above).
+  const resolved = await resolveSymbol(type, input);
+  if (!resolved.ok) return resolved;
+  const { symbol } = resolved;
+
+  // Price it now (the "POST" fetch). No price = bad symbol, so reject the save.
+  const price = await getPrice(symbol, type);
+  if (price === null) {
+    return {
+      ok: false,
+      error: `Couldn't fetch a price for "${input}". Double-check the symbol.`,
+      fieldErrors: { symbol: "No price found for this symbol" },
+    };
+  }
 
   await db.insert(holding).values({
     userId,
-    symbol: asset.symbol,
-    type: asset.type,
+    symbol,
+    type,
     quantity: String(quantity),
-    lastPrice: price === null ? null : String(price),
-    priceUpdatedAt: price === null ? null : new Date(),
+    lastPrice: String(price),
+    priceUpdatedAt: new Date(),
   });
 
   revalidatePath("/dashboard");
@@ -83,19 +133,30 @@ export async function updateHolding(
       fieldErrors: firstErrors(fieldErrors),
     };
   }
-  const { asset, quantity } = parsed.data;
+  const { type, symbol: input, quantity } = parsed.data;
 
-  const price = await getPrice(asset.symbol, asset.type);
+  const resolved = await resolveSymbol(type, input);
+  if (!resolved.ok) return resolved;
+  const { symbol } = resolved;
+
+  const price = await getPrice(symbol, type);
+  if (price === null) {
+    return {
+      ok: false,
+      error: `Couldn't fetch a price for "${input}". Double-check the symbol.`,
+      fieldErrors: { symbol: "No price found for this symbol" },
+    };
+  }
 
   // Ownership enforced in WHERE: a user can only update their own rows.
   const updated = await db
     .update(holding)
     .set({
-      symbol: asset.symbol,
-      type: asset.type,
+      symbol,
+      type,
       quantity: String(quantity),
-      lastPrice: price === null ? null : String(price),
-      priceUpdatedAt: price === null ? null : new Date(),
+      lastPrice: String(price),
+      priceUpdatedAt: new Date(),
     })
     .where(and(eq(holding.id, id), eq(holding.userId, userId)))
     .returning({ id: holding.id });
@@ -135,7 +196,7 @@ export async function refreshPrices(): Promise<RefreshResult> {
   if (rows.length === 0) return { ok: true, updated: 0, missing: 0 };
 
   const { prices, missing } = await getPrices(
-    rows.map((r) => ({ symbol: r.symbol, type: r.type as "crypto" | "stock" })),
+    rows.map((r) => ({ symbol: r.symbol, type: r.type as AssetType })),
   );
 
   const now = new Date();

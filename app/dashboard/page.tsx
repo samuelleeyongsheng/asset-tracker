@@ -14,6 +14,7 @@ function computeTotals(holdings: HoldingView[]): PortfolioTotals {
   let total = 0;
   let crypto = 0;
   let stock = 0;
+  let cash = 0;
   let pricedCount = 0;
   let unpricedCount = 0;
   let asOf: string | null = null;
@@ -26,13 +27,14 @@ function computeTotals(holdings: HoldingView[]): PortfolioTotals {
     pricedCount += 1;
     total += h.value;
     if (h.type === "crypto") crypto += h.value;
-    else stock += h.value;
+    else if (h.type === "stock") stock += h.value;
+    else cash += h.value;
     if (h.priceUpdatedAt && (asOf === null || h.priceUpdatedAt > asOf)) {
       asOf = h.priceUpdatedAt;
     }
   }
 
-  return { total, crypto, stock, pricedCount, unpricedCount, asOf };
+  return { total, crypto, stock, cash, pricedCount, unpricedCount, asOf };
 }
 
 export default async function DashboardPage() {

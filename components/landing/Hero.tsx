@@ -24,7 +24,7 @@ export default function Hero() {
                 <Badge variant="stock" size="md">Stocks</Badge>
                 {" "}together 
                 <br className="hidden sm:block" />
-                in one dashboard
+                in one dashboard with USD
                 
             </p>
 

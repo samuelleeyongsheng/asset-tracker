@@ -18,6 +18,7 @@ export interface CatalogAsset {
 }
 
 export const ASSET_CATALOG: CatalogAsset[] = [
+  { display: "USD", name: "US Dollar", symbol: "USD", type: "cash" },
   { display: "BTC", name: "Bitcoin", symbol: "bitcoin", type: "crypto" },
   { display: "ETH", name: "Ethereum", symbol: "ethereum", type: "crypto" },
   { display: "SOL", name: "Solana", symbol: "solana", type: "crypto" },
@@ -36,6 +37,7 @@ export const ASSET_CATALOG: CatalogAsset[] = [
 export const CATALOG_BY_TYPE: Record<AssetType, CatalogAsset[]> = {
   crypto: ASSET_CATALOG.filter((a) => a.type === "crypto"),
   stock: ASSET_CATALOG.filter((a) => a.type === "stock"),
+  cash: ASSET_CATALOG.filter((a) => a.type === "cash"),
 };
 
 /** Find a catalog entry by its stored symbol + type. */

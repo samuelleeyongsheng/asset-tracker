@@ -1,6 +1,6 @@
 import type { holding } from "@/db/schema";
 
-export type AssetType = "crypto" | "stock";
+export type AssetType = "crypto" | "stock" | "cash";
 
 export interface Ticker {
     symbol: string;
@@ -42,6 +42,7 @@ export interface PortfolioTotals {
   total: number;
   crypto: number;
   stock: number;
+  cash: number;
   pricedCount: number;
   unpricedCount: number;
   asOf: string | null; // most recent priceUpdatedAt across holdings (ISO)

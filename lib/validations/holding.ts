@@ -1,30 +1,24 @@
 import { z } from "zod";
 
-import { isSupportedAsset, splitAssetValue } from "@/lib/assets-catalog";
-import type { AssetType } from "@/types";
-
 /*
   Single source of truth for "valid holding form data". Values arrive as strings
-  (from FormData / form fields), so every field is validated as a string and
-  transformed into its final typed shape. We validate on the client for instant
-  feedback AND on the server (server actions) — never trust the client alone.
+  from the form, so each field is validated as a string and transformed into its
+  final shape. Validated on the client (instant feedback) AND on the server.
+
+  `symbol` is free text — the user types a ticker (stocks) or a coin
+  name/ticker/id (crypto). We don't restrict it to a fixed catalog here; the
+  server resolves it and price-checks it on save, rejecting anything it can't
+  actually price.
 */
 
-// The <select> submits "type:symbol" (e.g. "crypto:bitcoin"). Confirm it
-// resolves to an asset we actually support, then expose it as { symbol, type }.
-const assetField = z
-  .string()
-  .min(1, "Pick an asset")
-  .refine((val) => {
-    const { type, symbol } = splitAssetValue(val);
-    return type !== null && symbol.length > 0 && isSupportedAsset(symbol, type);
-  }, "Pick a supported asset")
-  .transform((val) => {
-    const { type, symbol } = splitAssetValue(val);
-    return { symbol, type: type as AssetType };
-  });
+const typeField = z.enum(["crypto", "stock", "cash"]);
 
-// How many units the user holds. Must be a finite, positive number.
+const symbolField = z
+  .string()
+  .trim()
+  .min(1, "Enter a symbol")
+  .max(40, "That symbol looks too long");
+
 const quantityField = z
   .string()
   .trim()
@@ -33,15 +27,17 @@ const quantityField = z
   .refine((n) => Number.isFinite(n) && n > 0, "Quantity must be greater than 0");
 
 export const holdingSchema = z.object({
-  asset: assetField,
+  type: typeField,
+  symbol: symbolField,
   quantity: quantityField,
 });
 
-// Post-parse shape: { asset: { symbol, type }, quantity: number }
+// Post-parse shape: { type: "crypto" | "stock", symbol: string, quantity: number }
 export type HoldingInput = z.infer<typeof holdingSchema>;
 
 // Raw (pre-parse) shape the form and server actions pass in.
 export type RawHoldingInput = {
-  asset: string;
+  type: string;
+  symbol: string;
   quantity: string;
 };

@@ -7,18 +7,15 @@
  * small in-memory TTL cache absorbs bursts (e.g. quick double-clicks) and keeps
  * us well under the CoinGecko free-tier rate limit.
  */
-import yahooFinance from "yahoo-finance2";
+import YahooFinance from "yahoo-finance2";
 
+import { ASSET_CATALOG } from "@/lib/assets-catalog";
 import type { AssetType } from "@/types";
 
-// yahoo-finance2 prints a one-time survey notice to the console; silence it.
-try {
-  (yahooFinance as unknown as { suppressNotices?: (n: string[]) => void }).suppressNotices?.([
-    "yahooSurvey",
-  ]);
-} catch {
-  // some versions don't expose this — safe to ignore
-}
+// yahoo-finance2 v3 exports a class (v2 exported a ready-made singleton). We make
+// one configured instance for the whole module. `suppressNotices` silences the
+// one-time survey notice the library prints to the console.
+const yahooFinance = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
 
 const TTL_MS = 60_000;
 type CacheEntry = { price: number; at: number };
@@ -87,7 +84,12 @@ export async function getPrices(
 
   for (const { symbol, type } of unique.values()) {
     const cached = getCached(type, symbol);
-    if (cached !== undefined) prices.set(key(type, symbol), cached);
+    if (cached !== undefined) {
+      prices.set(key(type, symbol), cached);
+      continue;
+    }
+    // Cash is its own unit: 1 USD is worth 1 USD, so there's no API to call.
+    if (type === "cash") prices.set(key(type, symbol), 1);
     else if (type === "crypto") needCrypto.push(symbol);
     else needStock.push(symbol);
   }
@@ -124,4 +126,39 @@ export async function getPrices(
 export async function getPrice(symbol: string, type: AssetType): Promise<number | null> {
   const { prices } = await getPrices([{ symbol, type }]);
   return prices.get(key(type, symbol)) ?? null;
+}
+
+/**
+ * Resolve free-typed crypto input to a CoinGecko coin id:
+ *   1. local catalog (fast; covers majors, so "BTC" / "bitcoin" -> "bitcoin")
+ *   2. CoinGecko /search (handles anything else, e.g. "LINK" -> "chainlink")
+ * Returns null if nothing matches. Stocks don't need this — their ticker is the
+ * symbol Yahoo expects.
+ */
+export async function resolveCryptoId(input: string): Promise<string | null> {
+  const q = input.trim();
+  if (!q) return null;
+  const lc = q.toLowerCase();
+
+  const fromCatalog = ASSET_CATALOG.find(
+    (a) =>
+      a.type === "crypto" &&
+      (a.display.toLowerCase() === lc || a.symbol.toLowerCase() === lc),
+  );
+  if (fromCatalog) return fromCatalog.symbol;
+
+  try {
+    const res = await fetch(
+      `https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(q)}`,
+      { cache: "no-store" },
+    );
+    if (res.ok) {
+      const data = (await res.json()) as { coins?: { id?: string }[] };
+      const id = data.coins?.[0]?.id;
+      if (id) return id;
+    }
+  } catch (e) {
+    console.error("[prices] CoinGecko search failed:", e);
+  }
+  return null;
 }
