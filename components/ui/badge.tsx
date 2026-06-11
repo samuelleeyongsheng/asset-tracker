@@ -7,6 +7,7 @@ type BadgeVariant =
   | "success"    // green — free, active, positive
   | "crypto"     // amber — crypto assets
   | "stock"      // blue — stock assets
+  | "cash"       // green — cash holdings
   | "outline";   // border only — subtle
 
 type BadgeSize = "sm" | "md" | "lg";
@@ -30,6 +31,8 @@ const variants: Record<BadgeVariant, string> = {
     "bg-amber-100 text-amber-800 border-transparent dark:bg-amber-950/60 dark:text-amber-400",
   stock:
     "bg-blue-100 text-blue-800 border-transparent dark:bg-blue-950/60 dark:text-blue-400",
+  cash:
+    "bg-emerald-100 text-emerald-800 border-transparent dark:bg-emerald-950/60 dark:text-emerald-400",
   outline:
     "bg-transparent text-foreground border-border",
 };
