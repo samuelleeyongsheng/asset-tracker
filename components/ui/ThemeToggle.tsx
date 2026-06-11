@@ -11,8 +11,8 @@ export default function ThemeToggle() {
     // Mount gate to avoid a hydration mismatch (the server can't know the resolved
     // theme). setState runs once on mount — no cascading renders — so this rule's
     // concern doesn't apply here.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     // Avoid hydration mismatch, only render icon after mount, else button not working
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     useEffect(() => setMounted(true), []);
 
     if (!mounted) {
